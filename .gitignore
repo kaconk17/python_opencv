@@ -138,7 +138,7 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-foto/*
+foto/*.png
 encoded_face.dat
 
 # General
