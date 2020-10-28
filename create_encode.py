@@ -34,9 +34,11 @@ def save_encode(gambar, name, path):
         print('Save Face data success')
     else:
         print('Nama sudah terdaftar !')
-    
+        cv2.destroyAllWindows()
 
-while True:
+startproc = True
+
+while startproc:
     success, img = cap.read()
     if not success:
         print("Gagal aktivasi Camera")
@@ -51,9 +53,12 @@ while True:
         top, right, bottom, left = top*4, right*4, bottom*4, left*4
         if k%256 == 27:
             print("Tutup aplikasi....")
+            cv2.destroyAllWindows()
+            startproc = False
             break
         elif k%256 == 32:
             crop_img = img[top-scale:bottom+scale, left-scale:right+scale]
+            cv2.destroyWindow('Camera')
             cv2.imshow("croped",crop_img)
             cv2.waitKey(0)
             name = input("masukkan nama :")

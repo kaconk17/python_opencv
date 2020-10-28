@@ -9,13 +9,10 @@ classnames = []
 mylist = os.listdir(path)
 
 for cl in mylist :
-    
     if not cl.startswith('.'):
         curImage = cv2.imread(f'{path}/{cl}')
         images.append(curImage)
         classnames.append(os.path.splitext(cl)[0])
-       
-    
 
 print(classnames)
 

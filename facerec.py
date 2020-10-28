@@ -13,6 +13,8 @@ listknown = np.array(list(allface_data[0].values()))
 
 
 cap = cv2.VideoCapture(0)
+scale = 100
+accurate = 0
 
 while True:
     success, img = cap.read()
@@ -29,12 +31,19 @@ while True:
         matchindex = np.argmin(facedis)
        
         if matches[matchindex]:
+            accurate = accurate + 1
             name = classnames[matchindex].upper()
             y1,x2,y2,x1 = faceloc
             y1,x2,y2,x1 = y1*4,x2*4,y2*4,x1*4
             cv2.rectangle(img, (x1,y1),(x2,y2),(0,255,0),2)
             cv2.rectangle(img, (x1,y2-35),(x2,y2),(0,255,0),cv2.FILLED)
             cv2.putText(img, name, (x1+6, y2-6),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,255),2)
+            if accurate == 20:
+                crop_img = img[y1-scale:y2+scale, x1-scale:x2+scale]
+                accurate = 0
+                cv2.destroyWindow('Camera')
+                cv2.imshow("OK",crop_img)
+                cv2.waitKey(2000)
 
 
 
