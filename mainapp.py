@@ -13,11 +13,13 @@ class MainWindow(QMainWindow):
         label.setAlignment(Qt.AlignCenter)
 
         self.setCentralWidget(label)
+        self.show()
 
 
-app = QApplication(sys.argv)
+def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    sys.exit(app.exec_())
 
-window = MainWindow()
-window.show()
-
-app.exec_()
+if __name__ == '__main__':
+    main()
