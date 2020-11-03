@@ -11,6 +11,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QDateTime, Qt
 from pendaftaran import Registrasi
+from absensi import Absensi
 
 
 class Ui_MainWindow(QtWidgets.QDialog):
@@ -33,6 +34,7 @@ class Ui_MainWindow(QtWidgets.QDialog):
         self.gridLayout.addWidget(self.btnDaftar, 0, 0, 1, 1)
         self.btnAbsen = QtWidgets.QPushButton(self.gridLayoutWidget)
         self.btnAbsen.setObjectName("btnAbsen")
+        self.btnAbsen.clicked.connect(self.menuAbsen)
         self.gridLayout.addWidget(self.btnAbsen, 0, 1, 1, 1)
         MainWindow.setCentralWidget(self.centralwidget)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
@@ -60,6 +62,11 @@ class Ui_MainWindow(QtWidgets.QDialog):
         self._new_window = Registrasi(self)
         self._new_window.show()
         self._new_window.startVideo("0")
+
+    def menuAbsen(self):
+        self.absenWindow = Absensi(self)
+        self.absenWindow.show()
+
 
 
 
