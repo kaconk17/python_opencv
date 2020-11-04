@@ -105,11 +105,8 @@ class Absensi(QDialog):
             self.startVideo("0")
 
     def closeEvent(self, event):
-        if not self.capture:
-            print("Video not start")
-        else:
-            self.timer.stop()
-            self.capture.release()
+        self.timer.stop()
+        self.capture.release()
 
         print("dialog window ditutup...")
 
