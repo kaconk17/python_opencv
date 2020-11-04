@@ -1,5 +1,6 @@
 import cv2
 from pyzbar import pyzbar
+import json
 
 cap = cv2.VideoCapture(0)
 
@@ -17,8 +18,11 @@ while True:
         barcodeType = barcode.type
         text = "{} ({})".format(barcodeData, barcodeType)
         cv2.putText(image, text, (x, y - 10),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-        if barcodeData == 'kanaya':
-            print('hasil OK')
+        dataId = json.loads(barcodeData)
+        if dataId["appid"] == "017":
+            print('ID :', dataId['nik'])
+            print('nama :', dataId['nama'])
+            print('mode :',dataId['mode'])
 
     cv2.imshow("barcode", image)
     key = cv2.waitKey(1) & 0xFF

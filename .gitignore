@@ -139,6 +139,7 @@ dmypy.json
 cython_debug/
 
 foto/*.png
+qrcode/generated/*.png
 encoded_face.dat
 
 # General

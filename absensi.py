@@ -16,6 +16,8 @@ import numpy as np
 import face_recognition
 import os
 import pickle
+from pyzbar import pyzbar
+import json
 
 
 class Absensi(QDialog):
@@ -28,7 +30,9 @@ class Absensi(QDialog):
         self.timer.timeout.connect(self.showDatetime)
         self.timer.start()
         self.radioIn.setChecked(True)
-        self.btnAbsen.clicked.connect(self.startAbsen)
+        #self.btnAbsen.clicked.connect(self.startAbsen)
+        self.startVideo("0")
+        self.qrstat = False
         """
         Dialog.setObjectName("Dialog")
         Dialog.resize(521, 384)
@@ -71,15 +75,30 @@ class Absensi(QDialog):
 
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
+        """
+    
+    def bacaQr(self, image):
+        self.imgs = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+        self.barcodes = pyzbar.decode(self.imgs)
 
-    def retranslateUi(self, Dialog):
-        _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Absen"))
-        self.label.setText(_translate("Dialog", "TextLabel"))
-        self.label_2.setText(_translate("Dialog", "TextLabel"))
-        self.label_3.setText(_translate("Dialog", "Nama :"))
-        self.btnAbsen.setText(_translate("Dialog", "Absen"))
-    """
+        for barcode in self.barcodes:
+            (x, y, w, h) = barcode.rect
+            
+            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+            self.barcodeData = barcode.data.decode("utf-8")
+            self.barcodeType = barcode.type
+            self.text = "{} ({})".format(self.barcodeData, self.barcodeType)
+            cv2.putText(image, self.text, (x, y - 10),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            self.dataId = json.loads(self.barcodeData)
+            if self.dataId["appid"] == "017":
+                self.qrstat = True
+                print('Nik :', self.dataId['nik'])
+                print('nama :', self.dataId['nama'])
+                print('mode :',self.dataId['mode'])
+        return image
+
+
+   
     def startAbsen(self):
         if len(self.txtNama.text()) > 0:
             self.nama = self.txtNama.text().upper()
@@ -105,9 +124,9 @@ class Absensi(QDialog):
 
     def updateFrame(self):
         ret, self.image = self.capture.read()
-        self.displayImage(self.image,False, 1)
+        self.displayImage(self.image,self.qrstat, 1)
 
-    def faceRec(self, frame,crop):
+    def faceRec(self, frame):
         imgS = cv2.resize(frame,(0,0),None,0.25,0.25)
         imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)
         facelocframe = face_recognition.face_locations(imgS)
@@ -115,24 +134,23 @@ class Absensi(QDialog):
         for faceloc in facelocframe:
             top, right, bottom, left = faceloc
             top, right, bottom, left = top*4, right*4, bottom*4, left*4
-            if crop:
-                scale = 100
-                tempimg = frame
-                frame = tempimg[top-scale:bottom+scale, left-scale:right+scale]
-                frame = np.require(frame, np.uint8, 'C')
-            
-            else:
-                cv2.rectangle(frame,(faceloc[3]*4,faceloc[0]*4),(faceloc[1]*4,faceloc[2]*4),(0,255,0),2)
+            cv2.rectangle(frame,(faceloc[3]*4,faceloc[0]*4),(faceloc[1]*4,faceloc[2]*4),(0,255,0),2)
 
         return frame
 
-    def displayImage(self, image, crop, window=1):
+    def displayImage(self, image, qr, window=1):
         image = cv2.resize(image, (640, 480))
-        try:
-            image = self.faceRec(image,crop)
-            self.imcrop = image
-        except Exception as e:
-            print(e)
+
+        if qr:
+            try:
+                image = self.faceRec(image)
+            except Exception as e:
+                print(e)
+        else:
+            try:
+                image = self.bacaQr(image)
+            except Exception as e:
+                print(e)
         
         qformat = QImage.Format_Indexed8
         if len(image.shape) == 3:
