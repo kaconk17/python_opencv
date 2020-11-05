@@ -18,6 +18,8 @@ import os
 import pickle
 from pyzbar import pyzbar
 import json
+import psycopg2
+from config import config
 
 
 class Absensi(QDialog):
@@ -29,72 +31,80 @@ class Absensi(QDialog):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.showDatetime)
         self.timer.start()
-        self.radioIn.setChecked(True)
-        #self.btnAbsen.clicked.connect(self.startAbsen)
-        self.startVideo("0")
         self.qrstat = False
-        """
-        Dialog.setObjectName("Dialog")
-        Dialog.resize(521, 384)
-        self.gridLayout = QtWidgets.QGridLayout(Dialog)
-        self.gridLayout.setObjectName("gridLayout")
-        self.horizontalLayout = QtWidgets.QHBoxLayout()
-        self.horizontalLayout.setObjectName("horizontalLayout")
-        self.label = QtWidgets.QLabel(Dialog)
-        self.label.setMinimumSize(QtCore.QSize(350, 350))
-        self.label.setObjectName("label")
-        self.horizontalLayout.addWidget(self.label)
-        self.verticalLayout = QtWidgets.QVBoxLayout()
-        self.verticalLayout.setSizeConstraint(QtWidgets.QLayout.SetNoConstraint)
-        self.verticalLayout.setObjectName("verticalLayout")
-        self.label_2 = QtWidgets.QLabel(Dialog)
-        self.label_2.setMinimumSize(QtCore.QSize(0, 0))
-        self.label_2.setMaximumSize(QtCore.QSize(150, 20))
-        self.label_2.setStyleSheet("font: 24pt \".SF NS Text\";")
-        self.label_2.setObjectName("label_2")
-        self.verticalLayout.addWidget(self.label_2)
-        spacerItem = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
-        self.verticalLayout.addItem(spacerItem)
-        self.gridLayout_2 = QtWidgets.QGridLayout()
-        self.gridLayout_2.setObjectName("gridLayout_2")
-        self.label_3 = QtWidgets.QLabel(Dialog)
-        self.label_3.setMaximumSize(QtCore.QSize(40, 20))
-        self.label_3.setObjectName("label_3")
-        self.gridLayout_2.addWidget(self.label_3, 0, 0, 1, 1)
-        self.lineEdit = QtWidgets.QLineEdit(Dialog)
-        self.lineEdit.setObjectName("lineEdit")
-        self.gridLayout_2.addWidget(self.lineEdit, 1, 0, 1, 1)
-        self.verticalLayout.addLayout(self.gridLayout_2)
-        self.btnAbsen = QtWidgets.QPushButton(Dialog)
-        self.btnAbsen.setObjectName("btnAbsen")
-        self.verticalLayout.addWidget(self.btnAbsen)
-        spacerItem1 = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
-        self.verticalLayout.addItem(spacerItem1)
-        self.horizontalLayout.addLayout(self.verticalLayout)
-        self.gridLayout.addLayout(self.horizontalLayout, 0, 0, 1, 1)
-
-        self.retranslateUi(Dialog)
-        QtCore.QMetaObject.connectSlotsByName(Dialog)
-        """
+        self.karyawan = {}
+        self.accurate = 0
+        self.defaultAwal()
+        
+    def defaultAwal(self):
+        self.labelNama.setText("")
+        self.labelNik.setText("")
+        self.labelMode.setText("")
+        self.labelTglsukses.setText("")
+    
+    def getKaryawan(self,kdata):
+        self.conn = None
+        self.master = {}
+        try:
+            self.params = config()
+            self.conn = psycopg2.connect(**self.params)
+            self.cur = self.conn.cursor()
+            self.cur.execute("""SELECT * FROM tb_karyawan WHERE nik = %s""",(kdata['nik'],))
+            self.hasil = self.cur.fetchall()
+            for self.r in self.hasil:
+                self.master['nama'] = self.r[1]
+                self.master['nik'] = self.r[2]
+                self.master['face_data'] = pickle.loads(self.r[3])
+            self.cur.close()
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+        finally:
+            if self.conn is not None:
+                self.conn.close()
+        return self.master
     
     def bacaQr(self, image):
         self.imgs = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
         self.barcodes = pyzbar.decode(self.imgs)
-
+        self.isJson = False
         for barcode in self.barcodes:
             (x, y, w, h) = barcode.rect
-            
-            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
             self.barcodeData = barcode.data.decode("utf-8")
             self.barcodeType = barcode.type
-            self.text = "{} ({})".format(self.barcodeData, self.barcodeType)
-            cv2.putText(image, self.text, (x, y - 10),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            self.dataId = json.loads(self.barcodeData)
-            if self.dataId["appid"] == "017":
-                self.qrstat = True
-                print('Nik :', self.dataId['nik'])
-                print('nama :', self.dataId['nama'])
-                print('mode :',self.dataId['mode'])
+            #self.text = "{} ({})".format(self.barcodeData, self.barcodeType)
+            try:
+                self.dataId = json.loads(self.barcodeData)
+                self.isJson = True
+            except ValueError as error:
+                self.isJson = False
+                
+
+            if self.isJson:
+                if self.dataId["appid"] == "017":
+
+                    self.karyawan = self.getKaryawan(self.dataId)
+                    if not self.karyawan:
+                        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                        cv2.putText(image, "Data tidak Valid!", (x, y - 10),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                        print("data salah")
+                    else:
+                        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                        self.qrstat = True
+                        self.labelNama.setText(self.karyawan['nama'])
+                        self.labelNik.setText(self.karyawan['nik'])
+                        self.labelMode.setText(self.dataId['mode'])
+                        if self.dataId['mode'] == 'IN':
+                            self.labelMode.setStyleSheet("background-color: green")
+                        else:
+                            self.labelMode.setStyleSheet("background-color: red")
+                        print('Nik :', self.karyawan['nik'])
+                        print('nama :', self.karyawan['nama'])
+                        #print('mode :',self.karyawan['mode'])
+            else:
+                cv2.putText(image, "Data tidak Valid!", (x, y - 10),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                #print("data salah")
+
+    
         return image
 
 
@@ -105,7 +115,7 @@ class Absensi(QDialog):
             self.startVideo("0")
 
     def closeEvent(self, event):
-        self.timer.stop()
+        self.vtimer.stop()
         self.capture.release()
 
         print("dialog window ditutup...")
@@ -123,15 +133,29 @@ class Absensi(QDialog):
         ret, self.image = self.capture.read()
         self.displayImage(self.image,self.qrstat, 1)
 
-    def faceRec(self, frame):
+    def faceRec(self, frame, encode_face):
         imgS = cv2.resize(frame,(0,0),None,0.25,0.25)
         imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)
         facelocframe = face_recognition.face_locations(imgS)
+        encodecurframe = face_recognition.face_encodings(imgS,facelocframe)
+        
 
-        for faceloc in facelocframe:
-            top, right, bottom, left = faceloc
-            top, right, bottom, left = top*4, right*4, bottom*4, left*4
-            cv2.rectangle(frame,(faceloc[3]*4,faceloc[0]*4),(faceloc[1]*4,faceloc[2]*4),(0,255,0),2)
+        for encodeface, faceloc in zip(encodecurframe, facelocframe):
+            match = face_recognition.compare_faces([encode_face], encodeface)
+            face_dis = face_recognition.face_distance([encode_face], encodeface)
+            if match:
+                self.accurate = self.accurate + 1
+                top, right, bottom, left = faceloc
+                top, right, bottom, left = top*4, right*4, bottom*4, left*4
+                cv2.rectangle(frame,(left,top),(right,bottom),(0,255,0),2)
+                cv2.rectangle(frame, (left,bottom-35),(right,bottom),(0,255,0),cv2.FILLED)
+                cv2.putText(frame, self.karyawan['nama'], (left+6, bottom-6),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,255),2)
+                if self.accurate == 20:
+                    self.accurate = 0
+                    self.labelStatus.setText('Success '+self.dataId['mode'])
+                    self.labelStatus.setStyleSheet("background-color: green")
+                    self.labelTglsukses.setText(QDateTime.currentDateTime().toString('dd/MM/yyyy, hh:mm:ss'))
+                    self.qrstat = False
 
         return frame
 
@@ -140,7 +164,7 @@ class Absensi(QDialog):
 
         if qr:
             try:
-                image = self.faceRec(image)
+                image = self.faceRec(image,self.karyawan['face_data'])
             except Exception as e:
                 print(e)
         else:

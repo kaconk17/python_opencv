@@ -16,6 +16,8 @@ import numpy as np
 import face_recognition
 import os
 import pickle
+import psycopg2
+from config import config
 
 
 class Registrasi(QDialog):
@@ -111,6 +113,7 @@ class Registrasi(QDialog):
         self.encodecurframe = face_recognition.face_encodings(self.imgS,self.facescurframe)[0]
         if len(self.txtName.text()) > 0:
             self.nama = self.txtName.text().upper()
+            """
             if os.path.exists('encoded_face.dat'):
                 with open('encoded_face.dat','rb') as extfile:
                     self.allface_data = pickle.load(extfile)
@@ -118,22 +121,24 @@ class Registrasi(QDialog):
                     self.face_encoding = np.array(list(self.allface_data.values()))
             else:
                 self.face_name = []
-
+            """
+            self.conn = None
+            self.exists = 0
+            try:
+                self.params = config()
+                self.conn = psycopg2.connect(**self.params)
+                self.cur = self.conn.cursor()
+                self.cur.execute("""SELECT * FROM tb_karyawan WHERE nama = %s""",(self.nama,))
+                self.exists = self.cur.rowcount
+                self.conn.commit()
+                self.cur.close()
+            except (Exception, psycopg2.DatabaseError) as error:
+                print(error)
+            finally:
+                if self.conn is not None:
+                    self.conn.close()
             
-            if self.nama not in self.face_name:
-                cv2.imwrite(f'{self.path}/{self.nama}.png', self.imcrop)
-                self.allface_data[self.nama]= self.encodecurframe
-                with open('encoded_face.dat','wb') as f:
-                    pickle.dump(self.allface_data,f)
-                print('Save Face data success')
-                self.msg = QMessageBox()
-                self.msg.setIcon(QMessageBox.Information)
-                self.msg.setText("Nama "+ self.nama +" Berhasil disimpan")
-                self.msg.setWindowTitle("Info !")
-                self.msg.setStandardButtons(QMessageBox.Ok)
-                self.msg.buttonClicked.connect(self.cancelCapture)
-                self.msg.exec_()
-            else:
+            if self.exists > 0:
                 print('Nama sudah terdaftar !')
                 self.msg = QMessageBox()
                 self.msg.setIcon(QMessageBox.Warning)
@@ -142,6 +147,35 @@ class Registrasi(QDialog):
                 self.msg.setStandardButtons(QMessageBox.Ok)
                 self.msg.buttonClicked.connect(self.cancelCapture)
                 self.msg.exec_()
+            else:
+                cv2.imwrite(f'{self.path}/{self.nama}.png', self.imcrop)
+                self.face_enc = pickle.dumps(self.encodecurframe)
+                """
+                self.allface_data[self.nama]= self.encodecurframe
+                with open('encoded_face.dat','wb') as f:
+                    pickle.dump(self.allface_data,f)
+                """
+                try:
+                    self.params = config()
+                    self.conn = psycopg2.connect(**self.params)
+                    self.cur = self.conn.cursor()
+                    self.cur.execute("""INSERT INTO tb_karyawan(nama, nik, face_data) VALUES(%s,%s,%s)""",(self.nama, '0029',self.face_enc))
+                    self.conn.commit()
+                    self.cur.close()
+                except (Exception, psycopg2.DatabaseError) as error:
+                    print(error)
+                finally:
+                    if self.conn is not None:
+                        self.conn.close()
+                print('Save Face data success')
+                self.msg = QMessageBox()
+                self.msg.setIcon(QMessageBox.Information)
+                self.msg.setText("Nama "+ self.nama +" Berhasil disimpan")
+                self.msg.setWindowTitle("Info !")
+                self.msg.setStandardButtons(QMessageBox.Ok)
+                self.msg.buttonClicked.connect(self.cancelCapture)
+                self.msg.exec_()
+                
         else:
             self.msg = QMessageBox()
             self.msg.setIcon(QMessageBox.Warning)

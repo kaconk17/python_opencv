@@ -11,7 +11,10 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QDateTime, Qt
 from pendaftaran import Registrasi
+import psycopg2
+from config import config
 from absensi import Absensi
+import pickle
 
 
 class Ui_MainWindow(QtWidgets.QDialog):
@@ -47,6 +50,7 @@ class Ui_MainWindow(QtWidgets.QDialog):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.showDatetime)
         self.timer.start()
+        self.koneksi()
        
 
     def retranslateUi(self, MainWindow):
@@ -66,6 +70,39 @@ class Ui_MainWindow(QtWidgets.QDialog):
     def menuAbsen(self):
         self.absenWindow = Absensi(self)
         self.absenWindow.show()
+        self.absenWindow.startVideo("0")
+
+    def koneksi(self):
+        self.conn = None
+        try:
+            self.params = config()
+            print('connecting to database')
+            self.conn = psycopg2.connect(**self.params)
+
+            self.cur = self.conn.cursor()
+            """
+            
+            self.hasil = self.cur.fetchall()
+            for self.r in self.hasil:
+                self.facedata = pickle.loads(self.r[3])
+                self.nama = self.r[1]
+                self.nik = self.r[2]
+                
+            print(self.facedata)
+            print(self.nama)
+            print(self.nik)
+            """
+            print('Postgress databse version :')
+            self.cur.execute('SELECT version()')
+            self.db_version = self.cur.fetchone()
+            print(self.db_version)
+            self.cur.close()
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+        finally:
+            if self.conn is not None:
+                self.conn.close()
+                #print('Database connectionclose')
 
 
 
