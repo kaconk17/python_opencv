@@ -35,7 +35,9 @@ class Registrasi(QDialog):
     def disableInput(self):
         self.btnSave.setEnabled(False)
         self.txtName.setEnabled(False)
+        self.txtNik.setEnabled(False)
         self.txtName.clear()
+        self.txtNik.clear()
 
     def closeEvent(self, event):
         self.timer.stop()
@@ -101,6 +103,7 @@ class Registrasi(QDialog):
         self.displayImage(self.image,True, 1)
         self.btnSave.setEnabled(True)
         self.txtName.setEnabled(True)
+        self.txtNik.setEnabled(True)
 
     def cancelCapture(self):
         self.disableInput()
@@ -111,8 +114,9 @@ class Registrasi(QDialog):
         self.imgS = cv2.cvtColor(self.imcrop, cv2.COLOR_BGR2RGB)
         self.facescurframe = face_recognition.face_locations(self.imgS)
         self.encodecurframe = face_recognition.face_encodings(self.imgS,self.facescurframe)[0]
-        if len(self.txtName.text()) > 0:
+        if len(self.txtName.text()) > 0 or len(self.txtNik.text()) > 0:
             self.nama = self.txtName.text().upper()
+            self.nik = self.txtNik.text()
             """
             if os.path.exists('encoded_face.dat'):
                 with open('encoded_face.dat','rb') as extfile:
@@ -128,7 +132,7 @@ class Registrasi(QDialog):
                 self.params = config()
                 self.conn = psycopg2.connect(**self.params)
                 self.cur = self.conn.cursor()
-                self.cur.execute("""SELECT * FROM tb_karyawan WHERE nama = %s""",(self.nama,))
+                self.cur.execute("""SELECT * FROM tb_karyawan WHERE nik = %s""",(self.nik,))
                 self.exists = self.cur.rowcount
                 self.conn.commit()
                 self.cur.close()
@@ -139,16 +143,16 @@ class Registrasi(QDialog):
                     self.conn.close()
             
             if self.exists > 0:
-                print('Nama sudah terdaftar !')
+                print('NIK sudah terdaftar !')
                 self.msg = QMessageBox()
                 self.msg.setIcon(QMessageBox.Warning)
-                self.msg.setText("Nama "+ self.nama +" Sudah Terdaftar !")
+                self.msg.setText("NIK "+ self.nik +" Sudah Terdaftar !")
                 self.msg.setWindowTitle("Warning !")
                 self.msg.setStandardButtons(QMessageBox.Ok)
                 self.msg.buttonClicked.connect(self.cancelCapture)
                 self.msg.exec_()
             else:
-                cv2.imwrite(f'{self.path}/{self.nama}.png', self.imcrop)
+                cv2.imwrite(f'{self.path}/{self.nik}.png', self.imcrop)
                 self.face_enc = pickle.dumps(self.encodecurframe)
                 """
                 self.allface_data[self.nama]= self.encodecurframe
@@ -159,7 +163,7 @@ class Registrasi(QDialog):
                     self.params = config()
                     self.conn = psycopg2.connect(**self.params)
                     self.cur = self.conn.cursor()
-                    self.cur.execute("""INSERT INTO tb_karyawan(nama, nik, face_data) VALUES(%s,%s,%s)""",(self.nama, '0029',self.face_enc))
+                    self.cur.execute("""INSERT INTO tb_karyawan(nama, nik, face_data) VALUES(%s,%s,%s)""",(self.nama, self.nik,self.face_enc))
                     self.conn.commit()
                     self.cur.close()
                 except (Exception, psycopg2.DatabaseError) as error:
@@ -179,7 +183,7 @@ class Registrasi(QDialog):
         else:
             self.msg = QMessageBox()
             self.msg.setIcon(QMessageBox.Warning)
-            self.msg.setText("Nama belum diisi !")
+            self.msg.setText("Nama atau NIK belum diisi !")
             self.msg.setWindowTitle("Warning !")
             self.msg.setStandardButtons(QMessageBox.Ok)
             self.msg.exec_()

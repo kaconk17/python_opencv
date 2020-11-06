@@ -34,7 +34,16 @@ class Absensi(QDialog):
         self.qrstat = False
         self.karyawan = {}
         self.accurate = 0
+        self.salah = 0
         self.defaultAwal()
+
+    def msgBox(self, pesan,icon):
+        self.msg = QMessageBox()
+        self.msg.setIcon(QMessageBox.icon)
+        self.msg.setText(pesan)
+        self.msg.setWindowTitle("Info !")
+        self.msg.setStandardButtons(QMessageBox.Ok)
+        self.msg.exec_()
         
     def defaultAwal(self):
         self.labelNama.setText("")
@@ -52,6 +61,7 @@ class Absensi(QDialog):
             self.cur.execute("""SELECT * FROM tb_karyawan WHERE nik = %s""",(kdata['nik'],))
             self.hasil = self.cur.fetchall()
             for self.r in self.hasil:
+                self.master['id'] = self.r[0]
                 self.master['nama'] = self.r[1]
                 self.master['nik'] = self.r[2]
                 self.master['face_data'] = pickle.loads(self.r[3])
@@ -133,7 +143,7 @@ class Absensi(QDialog):
         ret, self.image = self.capture.read()
         self.displayImage(self.image,self.qrstat, 1)
 
-    def faceRec(self, frame, encode_face):
+    def faceRec(self, frame, kdata):
         imgS = cv2.resize(frame,(0,0),None,0.25,0.25)
         imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)
         facelocframe = face_recognition.face_locations(imgS)
@@ -141,21 +151,40 @@ class Absensi(QDialog):
         
 
         for encodeface, faceloc in zip(encodecurframe, facelocframe):
-            match = face_recognition.compare_faces([encode_face], encodeface)
-            face_dis = face_recognition.face_distance([encode_face], encodeface)
-            if match:
+            match = face_recognition.compare_faces([kdata['face_data']], encodeface,tolerance=0.40)
+            face_dis = face_recognition.face_distance([kdata['face_data']], encodeface)
+            
+            top, right, bottom, left = faceloc
+            top, right, bottom, left = top*4, right*4, bottom*4, left*4
+            if face_dis < 0.40:
                 self.accurate = self.accurate + 1
-                top, right, bottom, left = faceloc
-                top, right, bottom, left = top*4, right*4, bottom*4, left*4
                 cv2.rectangle(frame,(left,top),(right,bottom),(0,255,0),2)
                 cv2.rectangle(frame, (left,bottom-35),(right,bottom),(0,255,0),cv2.FILLED)
                 cv2.putText(frame, self.karyawan['nama'], (left+6, bottom-6),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,255),2)
                 if self.accurate == 20:
                     self.accurate = 0
-                    self.labelStatus.setText('Success '+self.dataId['mode'])
-                    self.labelStatus.setStyleSheet("background-color: green")
-                    self.labelTglsukses.setText(QDateTime.currentDateTime().toString('dd/MM/yyyy, hh:mm:ss'))
+                    id_success = self.simapnAbsen(kdata,self.dataId['mode'])
+                    if not id_success:
+                        self.msgBox("Gagal Simpan Data Absen",'Warning')
+                        self.labelStatus.setText('Failed '+self.dataId['mode'])
+                        self.labelStatus.setStyleSheet("background-color: red")
+                        self.qrstat = False
+                    else:
+                        self.labelStatus.setText('Success '+self.dataId['mode'])
+                        self.labelStatus.setStyleSheet("background-color: green")
+                        self.labelTglsukses.setText(QDateTime.currentDateTime().toString('dd/MM/yyyy, hh:mm:ss'))
+                        self.qrstat = False
+            else:
+                self.salah = self.salah + 1
+                if self.salah == 20:
+                    self.salah = 0
                     self.qrstat = False
+                    self.defaultAwal()
+                cv2.rectangle(frame,(left,top),(right,bottom),(0,0,255),2)
+                cv2.rectangle(frame, (left,bottom-35),(right,bottom),(0,0,255),cv2.FILLED)
+                cv2.putText(frame, "False", (left+6, bottom-6),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,255),2)
+
+                        
 
         return frame
 
@@ -164,7 +193,7 @@ class Absensi(QDialog):
 
         if qr:
             try:
-                image = self.faceRec(image,self.karyawan['face_data'])
+                image = self.faceRec(image,self.karyawan)
             except Exception as e:
                 print(e)
         else:
@@ -186,6 +215,25 @@ class Absensi(QDialog):
         if window == 1:
             self.label.setPixmap(QPixmap.fromImage(outImage))
             self.label.setScaledContents(True)
+
+    def simapnAbsen(self,kdata, mode):
+        waktu = QDateTime.currentDateTime().toString()
+        try:
+            self.params = config()
+            self.conn = psycopg2.connect(**self.params)
+            self.cur = self.conn.cursor()
+            self.cur.execute("""INSERT INTO tb_absen(id_user, absen_mode, waktu) VALUES(%s,%s,%s) RETURNING id_absen;""",(kdata['id'], mode,waktu))
+            absen_id = self.cur.fetchone()[0]
+            self.conn.commit()
+            self.cur.close()
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+        finally:
+            if self.conn is not None:
+                self.conn.close()
+        print('absen tersimpan dengan ID :', absen_id)
+
+        return absen_id
 
     def showDatetime(self):
         self.labelTgl.setText(QDateTime.currentDateTime().toString('dd/MM/yyyy'))
